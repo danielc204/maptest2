@@ -1,0 +1,111 @@
+
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>בחירת מיקום</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      direction: rtl;
+      text-align: right;
+    }
+    #map {
+      height: 90vh;
+      width: 100%;
+    }
+    #search-container {
+      padding: 10px;
+      background-color: #f0f0f0;
+    }
+    #address-input {
+      width: 100%;
+      padding: 8px;
+      font-size: 16px;
+    }
+    #results {
+      list-style-type: none;
+      padding: 0;
+      margin: 5px 0;
+      max-height: 200px;
+      overflow-y: auto;
+      background-color: white;
+    }
+    #results li {
+      padding: 8px;
+      cursor: pointer;
+      border-bottom: 1px solid #ccc;
+    }
+    #results li:hover {
+      background-color: #e0e0e0;
+    }
+  </style>
+</head>
+<body>
+  <div id="search-container">
+    <input
+      type="text"
+      id="address-input"
+      placeholder="חיפוש כתובת"
+    />
+    <ul id="results"></ul>
+  </div>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([31.7683, 35.2137], 9); // ירושלים
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+    }).addTo(map);
+
+    const input = document.getElementById('address-input');
+    const resultsList = document.getElementById('results');
+    let marker;
+
+    input.addEventListener('input', async () => {
+      const query = input.value.trim();
+      if (query.length < 3) {
+        resultsList.innerHTML = '';
+        return;
+      }
+
+      // שליחת בקשה ל-Places API של גוגל לחיפוש מוסדות וכתובת
+      const apiKey = 'YOUR_GOOGLE_API_KEY'; // כאן הכנס את המפתח שלך
+      const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&language=he&key=${apiKey}`;
+
+      const res = await fetch(url);
+      const results = await res.json();
+
+      resultsList.innerHTML = '';
+      results.results.forEach((place) => {
+        const li = document.createElement('li');
+        li.textContent = place.name + " - " + place.formatted_address;
+        li.addEventListener('click', () => {
+          if (marker) {
+            map.removeLayer(marker);
+          }
+
+          const lat = place.geometry.location.lat;
+          const lon = place.geometry.location.lng;
+          marker = L.marker([lat, lon]).addTo(map);
+          map.setView([lat, lon], 15);
+          resultsList.innerHTML = '';
+          input.value = place.name;
+
+          // שליחת קואורדינטות ל-Thunkable
+          const coords = { lat, lon };
+          window.postMessage(JSON.stringify(coords), '*');
+        });
+        resultsList.appendChild(li);
+      });
+    });
+  </script>
+</body>
+</html>
