@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <title>בחירת מיקום</title>
+  <title>מפת חיפוש אינטראקטיבית</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link
     rel="stylesheet"
@@ -35,14 +35,28 @@
       max-height: 200px;
       overflow-y: auto;
       background-color: white;
+      border: 1px solid #ccc;
     }
     #results li {
       padding: 8px;
       cursor: pointer;
-      border-bottom: 1px solid #ccc;
+      border-bottom: 1px solid #eee;
     }
     #results li:hover {
       background-color: #e0e0e0;
+    }
+    #locate-btn {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+      padding: 10px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 14px;
+      cursor: pointer;
     }
   </style>
 </head>
@@ -51,59 +65,84 @@
     <input
       type="text"
       id="address-input"
-      placeholder="חיפוש כתובת"
+      placeholder="הכנס כתובת או שם מקום בעברית"
     />
     <ul id="results"></ul>
   </div>
+  <button id="locate-btn">מצא אותי</button>
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    const map = L.map('map').setView([31.7683, 35.2137], 9); // ירושלים
+    const map = L.map("map").setView([31.7683, 35.2137], 10); // ירושלים כברירת מחדל
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '© OpenStreetMap contributors',
     }).addTo(map);
 
-    const input = document.getElementById('address-input');
-    const resultsList = document.getElementById('results');
     let marker;
+    const input = document.getElementById("address-input");
+    const resultsList = document.getElementById("results");
 
-    input.addEventListener('input', async () => {
+    input.addEventListener("input", async () => {
       const query = input.value.trim();
       if (query.length < 3) {
-        resultsList.innerHTML = '';
+        resultsList.innerHTML = "";
         return;
       }
 
-      // שליחת בקשה ל-Places API של גוגל לחיפוש מוסדות וכתובת
-      const apiKey = 'YOUR_GOOGLE_API_KEY'; // כאן הכנס את המפתח שלך
-      const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&language=he&key=${apiKey}`;
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&accept-language=he`;
 
       const res = await fetch(url);
       const results = await res.json();
 
-      resultsList.innerHTML = '';
-      results.results.forEach((place) => {
-        const li = document.createElement('li');
-        li.textContent = place.name + " - " + place.formatted_address;
-        li.addEventListener('click', () => {
+      resultsList.innerHTML = "";
+      results.forEach((place) => {
+        const li = document.createElement("li");
+        li.textContent = place.display_name;
+        li.addEventListener("click", () => {
           if (marker) {
             map.removeLayer(marker);
           }
 
-          const lat = place.geometry.location.lat;
-          const lon = place.geometry.location.lng;
+          const lat = parseFloat(place.lat);
+          const lon = parseFloat(place.lon);
           marker = L.marker([lat, lon]).addTo(map);
-          map.setView([lat, lon], 15);
-          resultsList.innerHTML = '';
-          input.value = place.name;
+          map.setView([lat, lon], 16);
+          resultsList.innerHTML = "";
+          input.value = place.display_name;
 
-          // שליחת קואורדינטות ל-Thunkable
+          // שליחת נתונים ל־Thunkable
           const coords = { lat, lon };
-          window.postMessage(JSON.stringify(coords), '*');
+          window.postMessage(JSON.stringify(coords), "*");
         });
         resultsList.appendChild(li);
+      });
+    });
+
+    // כפתור "מצא אותי"
+    const locateBtn = document.getElementById("locate-btn");
+    locateBtn.addEventListener("click", () => {
+      if (!navigator.geolocation) {
+        alert("המכשיר לא תומך בגישה למיקום.");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition((position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+
+        if (marker) {
+          map.removeLayer(marker);
+        }
+
+        marker = L.marker([lat, lon]).addTo(map);
+        map.setView([lat, lon], 16);
+
+        const coords = { lat, lon };
+        window.postMessage(JSON.stringify(coords), "*");
+      }, () => {
+        alert("לא ניתן היה לקבל מיקום.");
       });
     });
   </script>
